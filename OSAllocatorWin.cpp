@@ -38,7 +38,7 @@
 #include "PageAllocation.h"
 #endif
 
-#if OS(WINDOWS)
+#if defined(OS_WINDOWS)
 
 namespace WTF {
 

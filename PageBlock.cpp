@@ -30,11 +30,11 @@
 #endif
 #include "PageBlock.h"
 
-#if OS(POSIX)
+#if defined(OS_POSIX)
 #include <unistd.h>
 #endif
 
-#if OS(WINDOWS)
+#if defined(OS_WINDOWS)
 #include <malloc.h>
 #include <windows.h>
 #endif
@@ -44,14 +44,14 @@ namespace WTF {
 static size_t s_pageSize;
 static size_t s_pageMask;
 
-#if OS(POSIX)
+#if defined(OS_POSIX)
 
 inline size_t systemPageSize()
 {
     return getpagesize();
 }
 
-#elif OS(WINDOWS)
+#elif defined(OS_WINDOWS)
 
 inline size_t systemPageSize()
 {

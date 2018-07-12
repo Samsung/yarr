@@ -39,13 +39,13 @@
 #include "PageAllocation.h"
 #endif
 
-#if OS(POSIX)
+#if defined(OS_POSIX)
 
 namespace WTF {
 
 void* OSAllocator::reserveUncommitted(size_t bytes, Usage usage, bool writable, bool executable, bool includesGuardPages)
 {
-#if OS(QNX)
+#if defined(OS_QNX)
     // Reserve memory with PROT_NONE and MAP_LAZY so it isn't committed now.
     void* result = mmap(0, bytes, PROT_NONE, MAP_LAZY | MAP_PRIVATE | MAP_ANON, -1, 0);
     if (result == MAP_FAILED)
@@ -53,9 +53,9 @@ void* OSAllocator::reserveUncommitted(size_t bytes, Usage usage, bool writable, 
 #else // OS(QNX)
 
     void* result = reserveAndCommit(bytes, usage, writable, executable, includesGuardPages);
-#if OS(LINUX)
+#if defined(OS_LINUX)
     madvise(result, bytes, MADV_DONTNEED);
-#elif HAVE(MADV_FREE_REUSE)
+#elif defined(HAVE_MADV_FREE_REUSE)
     // To support the "reserve then commit" model, we have to initially decommit.
     while (madvise(result, bytes, MADV_FREE_REUSABLE) == -1 && errno == EAGAIN) { }
 #endif
@@ -75,12 +75,12 @@ void* OSAllocator::reserveAndCommit(size_t bytes, Usage usage, bool writable, bo
         protection |= PROT_EXEC;
 
     int flags = MAP_PRIVATE | MAP_ANON;
-#if PLATFORM(IOS)
+#if defined(PLATFORM_IOS)
     if (executable)
         flags |= MAP_JIT;
 #endif
 
-#if (OS(LINUX) && CPU(X86_64))
+#if (defined(OS_LINUX) && defined(CPU_X86_64))
     // Linux distros usually do not allow overcommit by default, so
     // JSC's strategy of mmaping a large amount of memory upfront
     // won't work very well on some systems. Fortunately there's a
@@ -92,7 +92,7 @@ void* OSAllocator::reserveAndCommit(size_t bytes, Usage usage, bool writable, bo
     flags |= MAP_NORESERVE;
 #endif
 
-#if OS(DARWIN)
+#if defined(OS_DARWIN)
     int fd = usage;
 #else
     UNUSED_PARAM(usage);
@@ -100,7 +100,7 @@ void* OSAllocator::reserveAndCommit(size_t bytes, Usage usage, bool writable, bo
 #endif
 
     void* result = 0;
-#if (OS(DARWIN) && CPU(X86_64))
+#if (defined(OS_DARWIN) && defined(CPU_X86_64))
     if (executable) {
         ASSERT(includesGuardPages);
         // Cook up an address to allocate at, using the following recipe:
@@ -122,7 +122,7 @@ void* OSAllocator::reserveAndCommit(size_t bytes, Usage usage, bool writable, bo
 
     result = mmap(result, bytes, protection, flags, fd, 0);
     if (result == MAP_FAILED) {
-#if ENABLE(LLINT)
+#if defined(ENABLE_LLINT)
         if (executable)
             result = 0;
         else
@@ -142,7 +142,7 @@ void* OSAllocator::reserveAndCommit(size_t bytes, Usage usage, bool writable, bo
 
 void OSAllocator::commit(void* address, size_t bytes, bool writable, bool executable)
 {
-#if OS(QNX)
+#if defined(OS_QNX)
     int protection = PROT_READ;
     if (writable)
         protection |= PROT_WRITE;
@@ -150,11 +150,11 @@ void OSAllocator::commit(void* address, size_t bytes, bool writable, bool execut
         protection |= PROT_EXEC;
     if (MAP_FAILED == mmap(address, bytes, protection, MAP_FIXED | MAP_PRIVATE | MAP_ANON, -1, 0))
         CRASH();
-#elif OS(LINUX)
+#elif defined(OS_LINUX)
     UNUSED_PARAM(writable);
     UNUSED_PARAM(executable);
     madvise(address, bytes, MADV_WILLNEED);
-#elif HAVE(MADV_FREE_REUSE)
+#elif defined(HAVE_MADV_FREE_REUSE)
     UNUSED_PARAM(writable);
     UNUSED_PARAM(executable);
     while (madvise(address, bytes, MADV_FREE_REUSE) == -1 && errno == EAGAIN) { }
@@ -169,16 +169,16 @@ void OSAllocator::commit(void* address, size_t bytes, bool writable, bool execut
 
 void OSAllocator::decommit(void* address, size_t bytes)
 {
-#if OS(QNX)
+#if defined(OS_QNX)
     // Use PROT_NONE and MAP_LAZY to decommit the pages.
     mmap(address, bytes, PROT_NONE, MAP_FIXED | MAP_LAZY | MAP_PRIVATE | MAP_ANON, -1, 0);
-#elif OS(LINUX)
+#elif defined(OS_LINUX)
     madvise(address, bytes, MADV_DONTNEED);
-#elif HAVE(MADV_FREE_REUSE)
+#elif defined(HAVE_MADV_FREE_REUSE)
     while (madvise(address, bytes, MADV_FREE_REUSABLE) == -1 && errno == EAGAIN) { }
-#elif HAVE(MADV_FREE)
+#elif defined(HAVE_MADV_FREE)
     while (madvise(address, bytes, MADV_FREE) == -1 && errno == EAGAIN) { }
-#elif HAVE(MADV_DONTNEED)
+#elif defined(HAVE_MADV_DONTNEED)
     while (madvise(address, bytes, MADV_DONTNEED) == -1 && errno == EAGAIN) { }
 #else
     UNUSED_PARAM(address);

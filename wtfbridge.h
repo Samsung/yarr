@@ -1059,7 +1059,7 @@ const size_t notFound = static_cast<size_t>(-1);
 #define WTF_CPU_X86_64 1
 #endif
 
-#if OS(WINDOWS)
+#if defined(OS_WINDOWS)
 #define WTF_OS_WINDOWS 1
 #else
 #define WTF_OS_LINUX 1

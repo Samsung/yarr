@@ -20,7 +20,7 @@
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef PageAllocation_h
@@ -39,21 +39,21 @@
 #include "VMTags.h"
 #endif
 
-#if OS(DARWIN)
+#if defined(OS_DARWIN)
 #include <mach/mach_init.h>
 #include <mach/vm_map.h>
 #endif
 
-#if OS(WINDOWS)
+#if defined(OS_WINDOWS)
 #include <malloc.h>
 #include <windows.h>
 #endif
 
-#if HAVE(ERRNO_H)
+#if defined(HAVE_ERRNO_H)
 #include <errno.h>
 #endif
 
-#if HAVE(MMAP)
+#if defined(HAVE_MMAP)
 #include <sys/mman.h>
 #include <unistd.h>
 #endif

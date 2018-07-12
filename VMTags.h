@@ -20,15 +20,15 @@
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef VMTags_h
 #define VMTags_h
 
 // On Mac OS X, the VM subsystem allows tagging memory requested from mmap and vm_map
-// in order to aid tools that inspect system memory use. 
-#if OS(DARWIN)
+// in order to aid tools that inspect system memory use.
+#if defined(OS_DARWIN)
 
 #include <mach/vm_statistics.h>
 
