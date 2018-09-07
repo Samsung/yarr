@@ -748,6 +748,7 @@ public:
                 context->term -= term.atom.parenthesesWidth;
                 return false;
             }
+            // Fall through.
         case QuantifierNonGreedy:
             if (backTrack->begin == notFound) {
                 backTrack->begin = input.getPos();
@@ -763,6 +764,7 @@ public:
                 context->term -= term.atom.parenthesesWidth;
                 return true;
             }
+            // Fall through.
         case QuantifierFixedCount:
             break;
         }

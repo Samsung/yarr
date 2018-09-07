@@ -123,6 +123,7 @@ private:
                     return;
                 }
                 // Otherwise just fall through - cached character so treat this as Empty.
+                // Fall through.
 
             case Empty:
                 m_character = ch;
@@ -172,6 +173,7 @@ private:
             case CachedCharacter:
                 // Flush the currently cached character, then fall through.
                 m_delegate.atomCharacterClassAtom(m_character);
+                // Fall through.
 
             case Empty:
             case AfterCharacterClass:
@@ -363,6 +365,7 @@ private:
 
             // Fall-through to handle this as an octal escape.
         }
+        // Fall through.
 
         // Octal escape
         case '0':
@@ -670,6 +673,7 @@ private:
 
                 restoreState(state);
             } // if we did not find a complete quantifer, fall through to the default case.
+            // Fall through.
 
             default:
                 m_delegate.atomPatternCharacter(consume());
