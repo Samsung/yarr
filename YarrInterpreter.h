@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009, 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2009, 2010-2012, 2014, 2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,14 +23,10 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef YarrInterpreter_h
-#define YarrInterpreter_h
+#pragma once
 
+#include "wtfbridge.h"
 #include "YarrPattern.h"
-#ifndef ESCARGOT
-#include <wtf/PassOwnPtr.h>
-#include <wtf/unicode/Unicode.h>
-#endif
 
 namespace WTF {
 class BumpPointerAllocator;
@@ -78,10 +74,10 @@ struct ByteTerm {
     union {
         struct {
             union {
-                UChar patternCharacter;
+                UChar32 patternCharacter;
                 struct {
-                    UChar lo;
-                    UChar hi;
+                    UChar32 lo;
+                    UChar32 hi;
                 } casedCharacter;
                 CharacterClass* characterClass;
                 unsigned subpatternId;
@@ -91,7 +87,8 @@ struct ByteTerm {
                 unsigned parenthesesWidth;
             };
             QuantifierType quantityType;
-            unsigned quantityCount;
+            unsigned quantityMinCount;
+            unsigned quantityMaxCount;
         } atom;
         struct {
             int next;
@@ -109,11 +106,17 @@ struct ByteTerm {
     bool m_invert : 1;
     unsigned inputPosition;
 
-    ByteTerm(UChar ch, unsigned inputPos, unsigned frameLocation, Checked<unsigned> quantityCount, QuantifierType quantityType)
+    ByteTerm(UChar32 ch, unsigned inputPos, unsigned frameLocation, Checked<unsigned> quantityCount, QuantifierType quantityType)
         : frameLocation(frameLocation)
         , m_capture(false)
         , m_invert(false)
     {
+        atom.patternCharacter = ch;
+        atom.quantityType = quantityType;
+        atom.quantityMinCount = quantityCount.unsafeGet();
+        atom.quantityMaxCount = quantityCount.unsafeGet();
+        inputPosition = inputPos;
+
         switch (quantityType) {
         case QuantifierFixedCount:
             type = (quantityCount == 1) ? ByteTerm::TypePatternCharacterOnce : ByteTerm::TypePatternCharacterFixed;
@@ -125,14 +128,9 @@ struct ByteTerm {
             type = ByteTerm::TypePatternCharacterNonGreedy;
             break;
         }
-
-        atom.patternCharacter = ch;
-        atom.quantityType = quantityType;
-        atom.quantityCount = quantityCount.unsafeGet();
-        inputPosition = inputPos;
     }
 
-    ByteTerm(UChar lo, UChar hi, unsigned inputPos, unsigned frameLocation, Checked<unsigned> quantityCount, QuantifierType quantityType)
+    ByteTerm(UChar32 lo, UChar32 hi, unsigned inputPos, unsigned frameLocation, Checked<unsigned> quantityCount, QuantifierType quantityType)
         : frameLocation(frameLocation)
         , m_capture(false)
         , m_invert(false)
@@ -152,7 +150,8 @@ struct ByteTerm {
         atom.casedCharacter.lo = lo;
         atom.casedCharacter.hi = hi;
         atom.quantityType = quantityType;
-        atom.quantityCount = quantityCount.unsafeGet();
+        atom.quantityMinCount = quantityCount.unsafeGet();
+        atom.quantityMaxCount = quantityCount.unsafeGet();
         inputPosition = inputPos;
     }
 
@@ -163,7 +162,8 @@ struct ByteTerm {
     {
         atom.characterClass = characterClass;
         atom.quantityType = QuantifierFixedCount;
-        atom.quantityCount = 1;
+        atom.quantityMinCount = 1;
+        atom.quantityMaxCount = 1;
         inputPosition = inputPos;
     }
 
@@ -175,7 +175,8 @@ struct ByteTerm {
         atom.subpatternId = subpatternId;
         atom.parenthesesDisjunction = parenthesesInfo;
         atom.quantityType = QuantifierFixedCount;
-        atom.quantityCount = 1;
+        atom.quantityMinCount = 1;
+        atom.quantityMaxCount = 1;
         inputPosition = inputPos;
     }
     
@@ -185,7 +186,8 @@ struct ByteTerm {
         , m_invert(invert)
     {
         atom.quantityType = QuantifierFixedCount;
-        atom.quantityCount = 1;
+        atom.quantityMinCount = 1;
+        atom.quantityMaxCount = 1;
     }
 
     ByteTerm(Type type, unsigned subpatternId, bool capture, bool invert, unsigned inputPos)
@@ -195,14 +197,10 @@ struct ByteTerm {
     {
         atom.subpatternId = subpatternId;
         atom.quantityType = QuantifierFixedCount;
-        atom.quantityCount = 1;
+        atom.quantityMinCount = 1;
+        atom.quantityMaxCount = 1;
         inputPosition = inputPos;
     }
-
-#ifdef ESCARGOT
-    ByteTerm() {
-    }
-#endif
 
     static ByteTerm BOL(unsigned inputPos)
     {
@@ -336,6 +334,8 @@ public:
     {
     }
 
+    size_t estimatedSizeInBytes() const { return terms.capacity() * sizeof(ByteTerm); }
+
     Vector<ByteTerm> terms;
     unsigned m_numSubpatterns;
     unsigned m_frameSize;
@@ -344,34 +344,29 @@ public:
 struct BytecodePattern : public gc {
     WTF_MAKE_FAST_ALLOCATED;
 public:
-#ifndef ESCARGOT
-    BytecodePattern(PassOwnPtr<ByteDisjunction> body, Vector<ByteDisjunction*> allParenthesesInfo, YarrPattern& pattern, BumpPointerAllocator* allocator)
-#else
-    BytecodePattern(PassOwnPtr<ByteDisjunction> body, Vector<ByteDisjunction*> &allParenthesesInfo, YarrPattern& pattern, BumpPointerAllocator* allocator)
-#endif
-        : m_body(body)
-        , m_ignoreCase(pattern.m_ignoreCase)
-        , m_multiline(pattern.m_multiline)
+    BytecodePattern(std::unique_ptr<ByteDisjunction> body, Vector<std::unique_ptr<ByteDisjunction>>& parenthesesInfoToAdopt, YarrPattern& pattern, BumpPointerAllocator* allocator)
+        : m_body(WTFMove(body))
+        , m_flags(pattern.m_flags)
         , m_allocator(allocator)
     {
-        newlineCharacterClass = pattern.newlineCharacterClass();
-        wordcharCharacterClass = pattern.wordcharCharacterClass();
+        m_body->terms.shrinkToFit();
 
-        ASSERT(m_allParenthesesInfo.size() == 0);
-        m_allParenthesesInfo.swap(allParenthesesInfo);
-        ASSERT(m_userCharacterClasses.size() == 0);
+        newlineCharacterClass = pattern.newlineCharacterClass();
+        if (unicode() && ignoreCase())
+            wordcharCharacterClass = pattern.wordUnicodeIgnoreCaseCharCharacterClass();
+        else
+            wordcharCharacterClass = pattern.wordcharCharacterClass();
+
+        m_allParenthesesInfo.swap(parenthesesInfoToAdopt);
+        m_allParenthesesInfo.shrinkToFit();
+
         m_userCharacterClasses.swap(pattern.m_userCharacterClasses);
-#ifndef ESCARGOT
-        // 'Steal' the YarrPattern's CharacterClasses!  We clear its
-        // array, so that it won't delete them on destruction.  We'll
-        // take responsibility for that.
-        pattern.m_userCharacterClasses.clear();
-#else
+        m_userCharacterClasses.shrinkToFit();
+
         GC_REGISTER_FINALIZER_NO_ORDER(this, [] (void* obj, void* cd) {
             BytecodePattern* pattern = (BytecodePattern*)obj;
             pattern->clear();
         }, NULL, NULL, NULL);
-#endif
     }
 
     ~BytecodePattern()
@@ -379,33 +374,43 @@ public:
         clear();
     }
 
+    void* operator new(size_t size)
+    {
+        return GC_MALLOC_ATOMIC(size);
+    }
+    void* operator new[](size_t size) = delete;
+
     void clear()
     {
         deleteAllValues(m_allParenthesesInfo);
         deleteAllValues(m_userCharacterClasses);
-        m_body.release();
+        m_body.reset();
     }
 
-    OwnPtr<ByteDisjunction> m_body;
-    bool m_ignoreCase;
-    bool m_multiline;
+    size_t estimatedSizeInBytes() const { return m_body->estimatedSizeInBytes(); }
+    
+    bool ignoreCase() const { return m_flags & FlagIgnoreCase; }
+    bool multiline() const { return m_flags & FlagMultiline; }
+    bool sticky() const { return m_flags & FlagSticky; }
+    bool unicode() const { return m_flags & FlagUnicode; }
+
+    std::unique_ptr<ByteDisjunction> m_body;
+    RegExpFlags m_flags;
     // Each BytecodePattern is associated with a RegExp, each RegExp is associated
-    // with a JSGlobalData.  Cache a pointer to out JSGlobalData's m_regExpAllocator.
+    // with a VM.  Cache a pointer to out VM's m_regExpAllocator.
     BumpPointerAllocator* m_allocator;
 
     CharacterClass* newlineCharacterClass;
     CharacterClass* wordcharCharacterClass;
 
 private:
-    Vector<ByteDisjunction*> m_allParenthesesInfo;
-    Vector<CharacterClass*> m_userCharacterClasses;
+    Vector<std::unique_ptr<ByteDisjunction>> m_allParenthesesInfo;
+    Vector<std::unique_ptr<CharacterClass>> m_userCharacterClasses;
 };
 
-JS_EXPORT_PRIVATE PassOwnPtr<BytecodePattern> byteCompile(YarrPattern&, BumpPointerAllocator*);
+JS_EXPORT_PRIVATE std::unique_ptr<BytecodePattern> byteCompile(YarrPattern&, BumpPointerAllocator*);
 JS_EXPORT_PRIVATE unsigned interpret(BytecodePattern*, const String& input, unsigned start, unsigned* output);
 unsigned interpret(BytecodePattern*, const LChar* input, unsigned length, unsigned start, unsigned* output);
 unsigned interpret(BytecodePattern*, const UChar* input, unsigned length, unsigned start, unsigned* output);
 
 } } // namespace JSC::Yarr
-
-#endif // YarrInterpreter_h

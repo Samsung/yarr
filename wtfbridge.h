@@ -32,8 +32,8 @@ enum TextCaseSensitivity {
 namespace JSC { namespace Yarr {
 class Unicode {
   public:
-    static UChar toUpper(UChar c) { return ::Escargot::toupper((char16_t)c); }
-    static UChar toLower(UChar c) { return ::Escargot::tolower((char16_t)c); }
+    static UChar32 toUpper(UChar32 c) { return ::Escargot::toupper((char32_t)c); }
+    static UChar32 toLower(UChar32 c) { return ::Escargot::tolower((char32_t)c); }
 };
 
 
@@ -927,6 +927,7 @@ enum HashTableDeletedValueType { HashTableDeletedValue };
 template<typename T, size_t N = 0>
 class Vector {
   public:
+    typedef typename std::vector<T>::iterator iterator;
     std::vector<T> impl;
   public:
     Vector() {}
@@ -951,8 +952,14 @@ class Vector {
         return impl[i];
     }
 
-    const T *begin() const {
+    iterator begin()
+    {
         return impl.begin();
+    }
+
+    iterator end()
+    {
+        return impl.end();
     }
 
     T &last() {
@@ -966,6 +973,10 @@ class Vector {
     template <typename U>
     void append(const U &u) {
         impl.push_back(static_cast<T>(u));
+    }
+
+    void append(T &&u) {
+        impl.push_back(std::move(u));
     }
 
     template <size_t M>
@@ -987,7 +998,9 @@ class Vector {
 
     void shrink(size_t newLength) {
         ASSERT(newLength <= impl.size());
-        impl.resize(newLength);
+        while(impl.size() != newLength) {
+            impl.pop_back();
+        }
     }
 
     void shrinkToFit()
@@ -995,16 +1008,20 @@ class Vector {
         impl.shrink_to_fit();
     }
 
+    size_t capacity() const {
+        return impl.capacity();
+    }
+
+    void reserveInitialCapacity(size_t siz)
+    {
+        impl.reserve(siz);
+    }
+
     void swap(Vector &other) {
         impl.swap(other.impl);
     }
 
     void deleteAllValues() {
-        auto iter = impl.begin();
-        while(iter != impl.end()) {
-            delete *iter;
-            iter++;
-        }
         clear();
     }
 
@@ -1067,5 +1084,21 @@ const size_t notFound = static_cast<size_t>(-1);
 #define HAVE_ERRNO_H 1
 #define HAVE_MMAP 1
 #endif
+
+#if !defined(FALLTHROUGH)
+#define FALLTHROUGH
+#endif
+
+#define WTFMove std::move
+
+// NOTE there is no make_unique in c++11
+// if we use c++14, we should remove this
+namespace std {
+template<typename T, typename... Ts>
+std::unique_ptr<T> make_unique(Ts&&... params)
+{
+   return std::unique_ptr<T>(new T(std::forward<Ts>(params)...));
+}
+}
 
 #endif /* yarr_wtfbridge_h */
