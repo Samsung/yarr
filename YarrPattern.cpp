@@ -23,6 +23,24 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
+/*
+ * Copyright (c) 2019-present Samsung Electronics Co., Ltd
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public
+ *  License along with this library; if not, write to the Free Software
+ *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+ *  USA
+ */
 
 #include "Escargot.h"
 #include "YarrPattern.h"
@@ -902,15 +920,20 @@ const char* YarrPattern::errorMessage(YarrPattern::ErrorCode error)
         REGEXP_ERROR_PREFIX "numbers out of order in {} quantifier",          // QuantifierOutOfOrder
         REGEXP_ERROR_PREFIX "nothing to repeat",                              // QuantifierWithoutAtom
         REGEXP_ERROR_PREFIX "number too large in {} quantifier",              // QuantifierTooLarge
+        REGEXP_ERROR_PREFIX "quantifier is unmatched",                        // QuantifierUnmatched
         REGEXP_ERROR_PREFIX "missing )",                                      // MissingParentheses
         REGEXP_ERROR_PREFIX "unmatched parentheses",                          // ParenthesesUnmatched
         REGEXP_ERROR_PREFIX "unrecognized character after (?",                // ParenthesesTypeInvalid
         REGEXP_ERROR_PREFIX "missing terminating ] for character class",      // CharacterClassUnmatched
+        REGEXP_ERROR_PREFIX "character class is invalid",                     // CharacterClassInvalid
         REGEXP_ERROR_PREFIX "range out of order in character class",          // CharacterClassOutOfOrder
         REGEXP_ERROR_PREFIX "\\ at end of pattern",                           // EscapeUnterminated
         REGEXP_ERROR_PREFIX "invalid unicode {} escape",                      // InvalidUnicodeEscape
+        REGEXP_ERROR_PREFIX "invalid class escape",                           // InvalidClassEscape
         REGEXP_ERROR_PREFIX "invalid backreference for unicode pattern",      // InvalidBackreference
         REGEXP_ERROR_PREFIX "invalid escaped character for unicode pattern",  // InvalidIdentityEscape
+        REGEXP_ERROR_PREFIX "invalid decimal escape",                         // InvalidDecimalEscape
+        REGEXP_ERROR_PREFIX "invalid quantifier",                             // InvalidQuantifier
         REGEXP_ERROR_PREFIX "too many nested disjunctions",                   // TooManyDisjunctions
         REGEXP_ERROR_PREFIX "pattern exceeds string length limits",           // OffsetTooLarge
         REGEXP_ERROR_PREFIX "invalid flags"                                   // InvalidRegularExpressionFlags

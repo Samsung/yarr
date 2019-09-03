@@ -26,7 +26,9 @@
 #pragma once
 
 #include <stdint.h>
+#ifdef ENABLE_ICU
 #include <unicode/utypes.h>
+#endif
 
 namespace JSC { namespace Yarr {
 

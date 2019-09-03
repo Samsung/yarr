@@ -22,6 +22,24 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
+/*
+ * Copyright (c) 2019-present Samsung Electronics Co., Ltd
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public
+ *  License along with this library; if not, write to the Free Software
+ *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+ *  USA
+ */
 
 #pragma once
 
@@ -227,7 +245,7 @@ private:
     // For non-unicode patterns, most any character can be escaped.
     bool isIdentityEscapeAnError(int ch)
     {
-        if (m_isUnicode && !strchr("^$\\.*+?()[]{}|/", ch)) {
+        if (m_isUnicode && (ch == 0 || !strchr("^$\\.*+?()[]{}|/", ch))) {
             m_err = YarrPattern::InvalidIdentityEscape;
             return true;
         }
@@ -296,26 +314,50 @@ private:
 
         // CharacterClassEscape
         case 'd':
+            if (m_isUnicode) {
+                m_err = YarrPattern::CharacterClassInvalid;
+                return false;
+            }
             consume();
             delegate.atomBuiltInCharacterClass(DigitClassID, false);
             break;
         case 's':
+            if (m_isUnicode) {
+                m_err = YarrPattern::CharacterClassInvalid;
+                return false;
+            }
             consume();
             delegate.atomBuiltInCharacterClass(SpaceClassID, false);
             break;
         case 'w':
+            if (m_isUnicode) {
+                m_err = YarrPattern::CharacterClassInvalid;
+                return false;
+            }
             consume();
             delegate.atomBuiltInCharacterClass(WordClassID, false);
             break;
         case 'D':
+            if (m_isUnicode) {
+                m_err = YarrPattern::CharacterClassInvalid;
+                return false;
+            }
             consume();
             delegate.atomBuiltInCharacterClass(DigitClassID, true);
             break;
         case 'S':
+            if (m_isUnicode) {
+                m_err = YarrPattern::CharacterClassInvalid;
+                return false;
+            }
             consume();
             delegate.atomBuiltInCharacterClass(SpaceClassID, true);
             break;
         case 'W':
+            if (m_isUnicode) {
+                m_err = YarrPattern::CharacterClassInvalid;
+                return false;
+            }
             consume();
             delegate.atomBuiltInCharacterClass(WordClassID, true);
             break;
@@ -347,6 +389,11 @@ private:
                     m_err = YarrPattern::InvalidBackreference;
                     return false;
                 }
+            } else {
+                if (m_isUnicode) {
+                    m_err = YarrPattern::InvalidClassEscape;
+                    return false;
+                }
             }
 
             // Not a backreference, and not octal. Just a number.
@@ -361,6 +408,12 @@ private:
 
         // Octal escape
         case '0':
+            if (m_isUnicode) {
+                if (m_index + 1 < m_size && WTF::isASCIIDigit(m_data[m_index + 1])) {
+                    m_err = YarrPattern::InvalidDecimalEscape;
+                    return false;
+                }
+            }
             delegate.atomPatternCharacter(consumeOctal());
             break;
 
@@ -388,17 +441,33 @@ private:
 
         // ControlLetter
         case 'c': {
+            bool usedAsControlLetter = false;
             ParseState state = saveState();
             consume();
             if (!atEndOfPattern()) {
                 int control = consume();
 
                 // To match Firefox, inside a character class, we also accept numbers and '_' as control characters.
-                if (inCharacterClass ? WTF::isASCIIAlphanumeric(control) || (control == '_') : WTF::isASCIIAlpha(control)) {
-                    delegate.atomPatternCharacter(control & 0x1f);
-                    break;
+                if (m_isUnicode) {
+                    if (WTF::isASCIIAlpha(control)) {
+                        usedAsControlLetter = true;
+                        delegate.atomPatternCharacter(control & 0x1f);
+                        break;
+                    }
+                } else {
+                    if (inCharacterClass ? WTF::isASCIIAlphanumeric(control) || (control == '_') : WTF::isASCIIAlpha(control)) {
+                        usedAsControlLetter = true;
+                        delegate.atomPatternCharacter(control & 0x1f);
+                        break;
+                    }
                 }
             }
+
+            if (m_isUnicode && !usedAsControlLetter) {
+                m_err = YarrPattern::InvalidUnicodeEscape;
+                return false;
+            }
+
             restoreState(state);
             delegate.atomPatternCharacter('\\');
             break;
@@ -555,8 +624,11 @@ private:
                 return;
 
             case '\\':
+            {
+                unsigned startIndex = m_index;
                 parseCharacterClassEscape(characterClassConstructor);
                 break;
+            }
 
             default:
                 characterClassConstructor.atomPatternCharacter(consumePossibleSurrogatePair(), true);
@@ -580,6 +652,7 @@ private:
         ASSERT(peek() == '(');
         consume();
 
+        bool isLookhead = false;
         if (tryConsume('?')) {
             if (atEndOfPattern()) {
                 m_err = YarrPattern::ParenthesesTypeInvalid;
@@ -593,10 +666,12 @@ private:
             
             case '=':
                 m_delegate.atomParentheticalAssertionBegin();
+                isLookhead = true;
                 break;
 
             case '!':
                 m_delegate.atomParentheticalAssertionBegin(true);
+                isLookhead = true;
                 break;
             
             default:
@@ -606,6 +681,10 @@ private:
             m_delegate.atomParenthesesSubpatternBegin();
 
         ++m_parenthesesNestingDepth;
+
+        if (m_isUnicode) {
+            m_isLookaheadExistOnParentheses.push_back(isLookhead);
+        }
     }
 
     /*
@@ -613,7 +692,7 @@ private:
      *
      * Helper for parseTokens(); checks for parse errors (due to unmatched parentheses).
      */
-    void parseParenthesesEnd()
+    bool parseParenthesesEnd()
     {
         ASSERT(!m_err);
         ASSERT(peek() == ')');
@@ -625,6 +704,14 @@ private:
             m_err = YarrPattern::ParenthesesUnmatched;
 
         --m_parenthesesNestingDepth;
+
+        if (m_isUnicode && !m_err) {
+            bool ret = m_isLookaheadExistOnParentheses.back();
+            m_isLookaheadExistOnParentheses.pop_back();
+            return ret;
+        } else {
+            return false;
+        }
     }
 
     /*
@@ -675,10 +762,18 @@ private:
                 break;
 
             case ')':
-                parseParenthesesEnd();
+            {
+                bool isLookahead = parseParenthesesEnd();
                 lastTokenWasAnAtom = true;
-                break;
 
+                if (m_isUnicode && isLookahead && !atEndOfPattern()) {
+                    int ch = peek();
+                    if (ch == '*' || ch == '+' || ch == '?' || ch == '{') {
+                        m_err = YarrPattern::InvalidQuantifier;
+                    }
+                }
+                break;
+            }
             case '^':
                 consume();
                 m_delegate.assertionBOL();
@@ -702,6 +797,13 @@ private:
                 lastTokenWasAnAtom = true;
                 break;
 
+            case ']':
+                if (m_isUnicode) {
+                    m_err = YarrPattern::CharacterClassUnmatched;
+                    break;
+                }
+                goto defaultCase;
+
             case '\\':
                 lastTokenWasAnAtom = parseAtomEscape();
                 break;
@@ -724,6 +826,13 @@ private:
                 lastTokenWasAnAtom = false;
                 break;
 
+            case '}':
+                if (m_isUnicode) {
+                    m_err = YarrPattern::QuantifierUnmatched;
+                    break;
+                }
+                goto defaultCase;
+
             case '{': {
                 ParseState state = saveState();
 
@@ -745,11 +854,18 @@ private:
                     }
                 }
 
+                if (m_isUnicode) {
+                    m_err = YarrPattern::QuantifierUnmatched;
+                    break;
+                }
+
                 restoreState(state);
             }
+
             // if we did not find a complete quantifer, fall through to the default case.
             FALLTHROUGH;
 
+            defaultCase:
             default:
                 m_delegate.atomPatternCharacter(consumePossibleSurrogatePair());
                 lastTokenWasAnAtom = true;
@@ -887,6 +1003,7 @@ private:
     unsigned m_index;
     bool m_isUnicode;
     unsigned m_parenthesesNestingDepth;
+    std::vector<bool> m_isLookaheadExistOnParentheses; // this is used only unicode flag is true
 
     // Derived by empirical testing of compile time in PCRE and WREC.
     static const unsigned MAX_PATTERN_SIZE = 1024 * 1024;

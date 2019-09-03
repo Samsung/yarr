@@ -24,6 +24,7 @@
  */
 
 #include "Escargot.h"
+#include "wtfbridge.h"
 #include "YarrSyntaxChecker.h"
 
 #include "YarrParser.h"

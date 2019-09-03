@@ -23,6 +23,24 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+/*
+ * Copyright (c) 2019-present Samsung Electronics Co., Ltd
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public
+ *  License along with this library; if not, write to the Free Software
+ *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+ *  USA
+ */
 
 #include "Escargot.h"
 #include "YarrInterpreter.h"
@@ -1628,9 +1646,27 @@ public:
     void atomPatternCharacter(UChar32 ch, unsigned inputPosition, unsigned frameLocation, Checked<unsigned> quantityMaxCount, QuantifierType quantityType)
     {
         if (m_pattern.ignoreCase()) {
-            UChar32 lo = Unicode::toLower(ch);
-            UChar32 hi = Unicode::toUpper(ch);
-
+#if defined(ENABLE_ICU)
+            UChar32 lo;
+            UChar32 hi;
+            if (ch < 128) {
+                lo = u_tolower(ch);
+                hi = u_toupper(ch);
+            } else {
+                // if ch is ALPHABETIC like latin or greek, we should not apply u_tolower or u_toupper (print('iI\u0130'.replace(/\u0130/gi, '#')))
+                auto v = u_getIntPropertyValue(ch, UProperty::UCHAR_ALPHABETIC);
+                if (v) {
+                    lo = ch;
+                    hi = ch;
+                } else {
+                    lo = u_tolower(ch);
+                    hi = u_toupper(ch);
+                }
+            }
+#else
+            UChar32 lo = tolower(ch);
+            UChar32 hi = toupper(ch);
+#endif
             if (lo != hi) {
                 m_bodyDisjunction->terms.append(ByteTerm(lo, hi, inputPosition, frameLocation, quantityMaxCount, quantityType));
                 return;
